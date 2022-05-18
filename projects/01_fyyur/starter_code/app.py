@@ -15,6 +15,7 @@ from forms import *
 from flask_migrate import Migrate
 from os import abort
 import sys
+from sqlalchemy import func
 
 #----------------------------------------------------------------------------#
 # App Config.
@@ -114,28 +115,26 @@ def index():
 def venues():
   # TODO: replace with real venues data.
   #       num_upcoming_shows should be aggregated based on number of upcoming shows per venue.
-  data=[{
-    "city": "San Francisco",
-    "state": "CA",
-    "venues": [{
-      "id": 1,
-      "name": "The Musical Hop",
-      "num_upcoming_shows": 0,
-    }, {
-      "id": 3,
-      "name": "Park Square Live Music & Coffee",
-      "num_upcoming_shows": 1,
-    }]
-  }, {
-    "city": "New York",
-    "state": "NY",
-    "venues": [{
-      "id": 2,
-      "name": "The Dueling Pianos Bar",
-      "num_upcoming_shows": 0,
-    }]
-  }]
-  return render_template('pages/venues.html', areas=data);
+
+	data = []
+	cities_state_list = Venue.query.with_entities(func.count(Venue.id), Venue.city, Venue.state).group_by(Venue.city, Venue.state).all()
+	
+	for city_state_item in cities_state_list:
+		venues = Venue.query.filter_by(state=city_state_item.state).filter_by(city=city_state_item.city).all()
+		venue_list = []
+		for venue in venues:
+			venue_list.append({
+				"id": venue.id,
+				"name": venue.name, 
+				"num_upcoming_shows": len(db.session.query(Show).filter(Show.start_time>datetime.now()).all())
+			})
+		data.append({
+			"city": city_state_item.city,
+			"state": city_state_item.state,
+			"venues": venue_list
+    })
+	
+	return render_template('pages/venues.html', areas=data);
 
 @app.route('/venues/search', methods=['POST'])
 def search_venues():
